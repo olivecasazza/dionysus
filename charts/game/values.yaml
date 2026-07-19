@@ -1,0 +1,30 @@
+# Default values for the game-operator Helm chart. These mirror the
+# structure produced by nix/game/deployment.nix; Flux overrides via
+# HelmRelease.spec.values in nixlab.
+replicaCount: 1
+
+image:
+  repository: ghcr.io/olivecasazza/game-operator
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets:
+  - name: ghcr-pull
+
+serviceAccount:
+  create: true
+  name: game-operator
+
+metrics:
+  enabled: true
+  port: 8080
+  serviceMonitor:
+    enabled: true
+    interval: 15s
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    memory: 256Mi
