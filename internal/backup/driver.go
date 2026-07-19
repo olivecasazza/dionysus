@@ -37,8 +37,7 @@ type Driver interface {
 func ForDriver(d gamesv1alpha1.BackupDriver) (Driver, error) {
 	switch d {
 	case gamesv1alpha1.BackupDriverRestic:
-		// Wired to NewRestic() by the backup lane (restic.go).
-		return nil, fmt.Errorf("restic driver not yet linked")
+		return NewRestic(), nil
 	default:
 		return nil, fmt.Errorf("unsupported backup driver %q", d)
 	}
