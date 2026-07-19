@@ -251,6 +251,11 @@ rec {
                     containerPort = operator.metricsPort;
                     protocol = "TCP";
                   }
+                  {
+                    name = "probe";
+                    containerPort = 8081;
+                    protocol = "TCP";
+                  }
                 ];
                 resources = operator.resources;
                 # healthz / readyz are wired by the manager (cmd/manager/main.go).
