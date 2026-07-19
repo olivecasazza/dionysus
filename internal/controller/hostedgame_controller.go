@@ -20,6 +20,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	gamesv1alpha1 "github.com/olivecasazza/dionysus/api/v1alpha1"
+	"github.com/olivecasazza/dionysus/internal/idle"
 	"github.com/olivecasazza/dionysus/internal/resources"
 )
 
@@ -88,9 +89,32 @@ func (r *HostedGameReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, fmt.Errorf("reconcile Service: %w", err)
 	}
 
-	// 6. Status. Compute desired phase, address, observedGeneration, and
-	//    patch if changed. Player counts are written by the idle/query lane.
+	// 6. Idle policy evaluation. Queries the game server, writes player
+	//    status, and recommends scale-to-zero when applicable. Run
+	//    before computeStatus so the status patch picks up Players.
+	idleDecision, err := idle.Evaluate(ctx, game, dep)
+	if err != nil {
+		// Log + continue. A transient query failure shouldn't bounce
+		// the workqueue; the periodic requeue re-tries.
+		logger.Error(err, "idle evaluation failed")
+	} else {
+		if err := r.applyIdleDecision(ctx, game, idleDecision); err != nil {
+			logger.Error(err, "apply idle decision failed")
+		}
+		// Re-read dep if we just scaled it so computeStatus sees reality.
+		if idleDecision.ScaleToZero {
+			if err := r.Get(ctx, types.NamespacedName{Name: dep.Name, Namespace: dep.Namespace}, dep); err != nil {
+				return ctrl.Result{}, fmt.Errorf("re-read dep after scale: %w", err)
+			}
+		}
+	}
+
+	// 7. Status. Compute desired phase, address, observedGeneration, and
+	//    patch if changed. Players was set above by the idle evaluation.
 	newStatus := computeStatus(game, dep)
+	if idleDecision.Players != nil {
+		newStatus.Players = idleDecision.Players
+	}
 	if !statusEqual(game.Status, newStatus) {
 		patchBase := client.MergeFrom(game.DeepCopy())
 		game.Status = newStatus
@@ -102,16 +126,14 @@ func (r *HostedGameReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		}
 	}
 
-	// 7. Requeue cadence. Running games requeue periodically so the idle
-	//    loop (separate controller, future lane) gets a chance to act.
-	//    Stopped/Failed games only requeue on spec change.
-	phase := newStatus.Phase
-	switch phase {
-	case gamesv1alpha1.PhaseRunning, gamesv1alpha1.PhaseStarting, gamesv1alpha1.PhaseStopping:
-		return ctrl.Result{RequeueAfter: runningRequeue}, nil
-	default:
-		return ctrl.Result{}, nil
+	// 8. Requeue cadence. Idle-aware games use their configured interval;
+	//    everything else uses the controller default. Stopped/Failed
+	//    games only requeue on spec change.
+	requeue := requeueFor(newStatus.Phase, idleDecision.RequeueAfter)
+	if requeue > 0 {
+		return ctrl.Result{RequeueAfter: requeue}, nil
 	}
+	return ctrl.Result{}, nil
 }
 
 // reconcilePVCs creates any missing PVCs. Existing PVCs are not resized;
@@ -304,6 +326,76 @@ func (r *HostedGameReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&corev1.Service{}).
 		Owns(&corev1.PersistentVolumeClaim{}).
 		Complete(r)
+}
+
+// applyIdleDecision persists the side effects of an idle.Decision:
+//   - writes the LastNonZeroAnnotation when the idle lane wants to
+//     record/reset the timer
+//   - scales the Deployment to 0 when Decision.ScaleToZero is set
+//
+// Player status is folded into the newStatus computation in Reconcile,
+// not here — this function only handles mutable bookkeeping + the
+// scale-down action.
+func (r *HostedGameReconciler) applyIdleDecision(
+	ctx context.Context,
+	game *gamesv1alpha1.HostedGame,
+	decision idle.Decision,
+) error {
+	// Annotation update. We patch metadata only; status is patched
+	// separately in Reconcile to avoid two status writes per loop.
+	if decision.LastNonZeroAt != nil {
+		annotations := game.Annotations
+		if annotations == nil {
+			annotations = map[string]string{}
+		}
+		newVal := decision.LastNonZeroAt.UTC().Format(time.RFC3339)
+		if annotations[idle.LastNonZeroAnnotation] == newVal {
+			// No-op; skip the patch.
+		} else {
+			annotations[idle.LastNonZeroAnnotation] = newVal
+			patchBase := client.MergeFrom(game.DeepCopy())
+			game.Annotations = annotations
+			if err := r.Patch(ctx, game, patchBase); err != nil {
+				return fmt.Errorf("patch idle annotation: %w", err)
+			}
+		}
+	}
+
+	// Scale to zero. We update the Deployment's replicas field directly.
+	// The reconcileDeployment path already preserves replicas==0 once
+	// set, so we only need to write the transition.
+	if decision.ScaleToZero {
+		dep := &appsv1.Deployment{}
+		if err := r.Get(ctx, types.NamespacedName{Name: game.Name, Namespace: game.Namespace}, dep); err != nil {
+			return fmt.Errorf("get deployment for scale-down: %w", err)
+		}
+		if dep.Spec.Replicas != nil && *dep.Spec.Replicas == 0 {
+			return nil // already scaled
+		}
+		updated := dep.DeepCopy()
+		zero := int32(0)
+		updated.Spec.Replicas = &zero
+		if err := r.Update(ctx, updated); err != nil {
+			return fmt.Errorf("scale deployment to zero: %w", err)
+		}
+	}
+	return nil
+}
+
+// requeueFor returns the requeue interval for a phase. Idle-aware games
+// pass their configured interval (from idle.Decision.RequeueAfter);
+// other phases use the controller default. Zero means "don't requeue"
+// (Stopped / Failed wait on spec change).
+func requeueFor(phase gamesv1alpha1.GamePhase, idleInterval time.Duration) time.Duration {
+	if idleInterval > 0 {
+		return idleInterval
+	}
+	switch phase {
+	case gamesv1alpha1.PhaseRunning, gamesv1alpha1.PhaseStarting, gamesv1alpha1.PhaseStopping:
+		return runningRequeue
+	default:
+		return 0
+	}
 }
 
 // int32Ptr is duplicated from resources to avoid a cross-package import
