@@ -1,0 +1,91 @@
+{{- if .Values.discord.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/component: discord
+    app.kubernetes.io/instance: dionysus
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: dionysus
+    app.kubernetes.io/version: 0.1.0
+    helm.sh/chart: dionysus-0.1.0
+  name: dionysus-discord
+spec:
+  ports:
+    - name: http
+      port: 8080
+      protocol: TCP
+      targetPort: http
+  selector:
+    app.kubernetes.io/component: discord
+    app.kubernetes.io/instance: dionysus
+    app.kubernetes.io/name: dionysus
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/component: discord
+    app.kubernetes.io/instance: dionysus
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: dionysus
+    app.kubernetes.io/version: 0.1.0
+    helm.sh/chart: dionysus-0.1.0
+  name: dionysus-discord
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: discord
+      app.kubernetes.io/instance: dionysus
+      app.kubernetes.io/name: dionysus
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: discord
+        app.kubernetes.io/instance: dionysus
+        app.kubernetes.io/name: dionysus
+    spec:
+      containers:
+        - env:
+            - name: DISCORD_PUBLIC_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: public-key
+                  name: dionysus-discord-creds
+            - name: DISCORD_APP_ID
+              valueFrom:
+                secretKeyRef:
+                  key: app-id
+                  name: dionysus-discord-creds
+            - name: DISCORD_BOT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  key: bot-token
+                  name: dionysus-discord-creds
+          image: '{{ .Values.discord.image.repository }}:{{ .Values.discord.image.tag }}'
+          imagePullPolicy: '{{ .Values.discord.image.pullPolicy }}'
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          name: discord
+          ports:
+            - containerPort: 8080
+              name: http
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          resources:
+            limits:
+              memory: 128Mi
+            requests:
+              cpu: 50m
+              memory: 64Mi
+      imagePullSecrets:
+        - name: ghcr-pull
+      serviceAccountName: dionysus
+{{- end }}

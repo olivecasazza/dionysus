@@ -1,0 +1,117 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app.kubernetes.io/instance: dionysus
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: dionysus
+    app.kubernetes.io/version: 0.1.0
+    helm.sh/chart: dionysus-0.1.0
+  name: dionysus
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/instance: dionysus
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: dionysus
+    app.kubernetes.io/version: 0.1.0
+    helm.sh/chart: dionysus-0.1.0
+  name: dionysus-role
+rules:
+  - apiGroups:
+      - games.dionysus.io
+    resources:
+      - hostedgames
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  - apiGroups:
+      - games.dionysus.io
+    resources:
+      - hostedgames/status
+      - hostedgames/finalizers
+    verbs:
+      - get
+      - update
+      - patch
+  - apiGroups:
+      - apps
+    resources:
+      - deployments
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  - apiGroups:
+      - ''
+    resources:
+      - services
+      - persistentvolumeclaims
+      - pods
+      - pods/log
+      - pods/exec
+      - events
+      - secrets
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  - apiGroups:
+      - ''
+    resources:
+      - configmaps
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  - apiGroups:
+      - batch
+    resources:
+      - cronjobs
+      - jobs
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/instance: dionysus
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: dionysus
+    app.kubernetes.io/version: 0.1.0
+    helm.sh/chart: dionysus-0.1.0
+  name: dionysus-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: dionysus-role
+subjects:
+  - kind: ServiceAccount
+    name: dionysus
+    namespace: '{{ .Release.Namespace }}'

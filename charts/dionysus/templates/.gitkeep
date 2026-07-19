@@ -1,7 +1,0 @@
-# Helm templates in this directory are GENERATED at build time by the
-# nix/game/deployment.nix derivation (`helmTemplates pkgs`). The flake's
-# `helmChart` output copies CRDs from this chart source dir but writes
-# templates/*.yaml, values.yaml, and Chart.yaml fresh on every build.
-#
-# Do not commit template files here; they would diverge from the
-# generated artifacts. See ../../nix/game/deployment.nix.
