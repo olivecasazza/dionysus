@@ -6,8 +6,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
-	gamesv1alpha1 "github.com/olivecasazza/game-operator/api/v1alpha1"
-	"github.com/olivecasazza/game-operator/internal/workshop"
+	gamesv1alpha1 "github.com/olivecasazza/dionysus/api/v1alpha1"
+	"github.com/olivecasazza/dionysus/internal/workshop"
 )
 
 // label keys shared across every object the operator creates.
@@ -24,7 +24,7 @@ func commonLabels(game *gamesv1alpha1.HostedGame) map[string]string {
 	return map[string]string{
 		labelName:     "hostedgame",
 		labelInstance: game.Name,
-		labelManaged:  "game-operator",
+		labelManaged:  "dionysus",
 		labelComp:     "game",
 	}
 }
@@ -35,7 +35,7 @@ func selectorLabels(game *gamesv1alpha1.HostedGame) map[string]string {
 	return map[string]string{
 		labelName:     "hostedgame",
 		labelInstance: game.Name,
-		labelManaged:  "game-operator",
+		labelManaged:  "dionysus",
 	}
 }
 

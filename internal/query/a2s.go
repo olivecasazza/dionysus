@@ -9,7 +9,7 @@ import (
 	"net"
 	"time"
 
-	gamesv1alpha1 "github.com/olivecasazza/game-operator/api/v1alpha1"
+	gamesv1alpha1 "github.com/olivecasazza/dionysus/api/v1alpha1"
 )
 
 // A2S speaks the Valve A2S_PLAYER + A2S_INFO protocols over UDP.

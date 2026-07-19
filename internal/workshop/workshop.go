@@ -10,7 +10,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	gamesv1alpha1 "github.com/olivecasazza/game-operator/api/v1alpha1"
+	gamesv1alpha1 "github.com/olivecasazza/dionysus/api/v1alpha1"
 )
 
 const (

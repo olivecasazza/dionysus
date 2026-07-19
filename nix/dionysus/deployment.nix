@@ -6,35 +6,35 @@
 # pattern at /home/olive/Repositories/athena-operator/nix/athena/deployment.nix.
 #
 # Flux consumes the Helm chart via GitRepository + HelmRelease (see
-# nixlab/modules/k8s/apps/game-operator.nix). Hydra builds the chart and
+# nixlab/modules/k8s/apps/dionysus.nix). Hydra builds the chart and
 # the OCI image (see flake.nix hydraJobs).
 let
   inherit (lib) filterAttrs;
 in
 rec {
   chart = {
-    name = "game";
-    description = "Game Server Operator for Kubernetes — HostedGame CRD";
+    name = "dionysus";
+    description = "Dionysus — Game Server Operator for Kubernetes (HostedGame CRD)";
     version = "0.1.0";
     appVersion = "0.1.0";
   };
 
   namespace = "games";
-  releaseName = "game-operator";
+  releaseName = "dionysus";
 
   image = {
-    repository = "ghcr.io/olivecasazza/game-operator";
+    repository = "ghcr.io/olivecasazza/dionysus";
     pullPolicy = "IfNotPresent";
     # Flux ImagePolicy replaces this with the latest digest-pinned tag.
     # The literal "latest" is a placeholder; the nixlab HelmRelease
-    # carries the {"$imagepolicy": "apps:game-operator"} setter marker.
+    # carries the {"$imagepolicy": "apps:dionysus"} setter marker.
     tag = "latest";
   };
 
   operator = {
     replicas = 1;
     metricsPort = 8080;
-    serviceAccountName = "game-operator";
+    serviceAccountName = "dionysus";
     resources = {
       requests = {
         cpu = "100m";
@@ -57,7 +57,7 @@ rec {
   };
 
   api = {
-    group = "games.game-operator.io";
+    group = "games.dionysus.io";
     version = "v1alpha1";
     resources = [ "hostedgames" ];
     statusResources = map (resource: "${resource}/status") api.resources;
@@ -408,7 +408,7 @@ rec {
   };
 
   # helmChart assembles the chart directory consumed by Flux's
-  # HelmRelease. CRDs come from the committed charts/game/crds/ dir
+  # HelmRelease. CRDs come from the committed charts/dionysus/crds/ dir
   # (generated from Go types via controller-gen); templates come from
   # the rendered Helm-syntax objects above.
   helmChart =
@@ -417,9 +417,9 @@ rec {
       templates = helmTemplates pkgs;
     in
     pkgs.stdenvNoCC.mkDerivation {
-      pname = "game-helm-chart";
+      pname = "dionysus-helm-chart";
       version = chart.version;
-      src = ../../charts/game;
+      src = ../../charts/dionysus;
       dontBuild = true;
       installPhase = ''
         mkdir -p $out/templates $out/crds
@@ -451,7 +451,7 @@ rec {
   k8sManifests =
     pkgs:
     pkgs.stdenvNoCC.mkDerivation {
-      pname = "game-k8s-manifests";
+      pname = "dionysus-k8s-manifests";
       version = chart.version;
       dontUnpack = true;
       nativeBuildInputs = [ pkgs.yq-go ];

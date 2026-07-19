@@ -4,8 +4,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	gamesv1alpha1 "github.com/olivecasazza/game-operator/api/v1alpha1"
-	"github.com/olivecasazza/game-operator/internal/scheme"
+	gamesv1alpha1 "github.com/olivecasazza/dionysus/api/v1alpha1"
+	"github.com/olivecasazza/dionysus/internal/scheme"
 )
 
 // SetOwnerReference marks controlled as owned by the HostedGame owner.

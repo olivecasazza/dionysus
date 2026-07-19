@@ -1,4 +1,4 @@
-module github.com/olivecasazza/game-operator
+module github.com/olivecasazza/dionysus
 
 go 1.26.0
 

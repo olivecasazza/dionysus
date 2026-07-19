@@ -19,8 +19,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	gamesv1alpha1 "github.com/olivecasazza/game-operator/api/v1alpha1"
-	"github.com/olivecasazza/game-operator/internal/resources"
+	gamesv1alpha1 "github.com/olivecasazza/dionysus/api/v1alpha1"
+	"github.com/olivecasazza/dionysus/internal/resources"
 )
 
 const (
@@ -37,9 +37,9 @@ type HostedGameReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-// +kubebuilder:rbac:groups=games.game-operator.io,resources=hostedgames,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=games.game-operator.io,resources=hostedgames/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=games.game-operator.io,resources=hostedgames/finalizers,verbs=update
+// +kubebuilder:rbac:groups=games.dionysus.io,resources=hostedgames,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=games.dionysus.io,resources=hostedgames/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=games.dionysus.io,resources=hostedgames/finalizers,verbs=update
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;create;update;patch;delete

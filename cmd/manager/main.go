@@ -1,4 +1,4 @@
-// Package main is the game-operator manager entrypoint. It wires the
+// Package main is the dionysus manager entrypoint. It wires the
 // HostedGameReconciler into a controller-runtime manager.
 package main
 
@@ -17,8 +17,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	gamesv1alpha1 "github.com/olivecasazza/game-operator/api/v1alpha1"
-	"github.com/olivecasazza/game-operator/internal/controller"
+	gamesv1alpha1 "github.com/olivecasazza/dionysus/api/v1alpha1"
+	"github.com/olivecasazza/dionysus/internal/controller"
 )
 
 var scheme = runtime.NewScheme()
@@ -65,7 +65,7 @@ func main() {
 		},
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       "game-operator.casazza.io",
+		LeaderElectionID:       "dionysus.casazza.io",
 		Client: client.Options{
 			Cache: &client.CacheOptions{
 				DisableFor: []client.Object{},
@@ -96,7 +96,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	setupLogger.Info("starting game-operator manager")
+	setupLogger.Info("starting dionysus manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		setupLogger.Error(err, "problem running manager")
 		os.Exit(1)

@@ -10,7 +10,7 @@ import (
 	"net"
 	"time"
 
-	gamesv1alpha1 "github.com/olivecasazza/game-operator/api/v1alpha1"
+	gamesv1alpha1 "github.com/olivecasazza/dionysus/api/v1alpha1"
 )
 
 // Result is the normalized player-count observation.

@@ -16,7 +16,7 @@
       # mkDeployment is parameterized over lib so the same module can be
       # evaluated against either nixpkgs.lib (used by hydraJobs / packages)
       # or lib from another flake (consumer-side composition in nixlab).
-      mkDeployment = lib: import ./nix/game/deployment.nix { inherit lib; };
+      mkDeployment = lib: import ./nix/dionysus/deployment.nix { inherit lib; };
 
       # System-level outputs (per-system packages, devShells, checks).
       # hydraJobs at the top level reuses these.
@@ -28,15 +28,15 @@
           deployment = mkDeployment lib;
 
           # buildGoModule vendorHash: left as fakeHash deliberately. The
-          # first `nix build .#game-operator` run will fail and print the
+          # first `nix build .#dionysus` run will fail and print the
           # real hash; update it here and rebuild. This is the standard
           # bootstrapping pattern for Go flakes.
-          game-operator = pkgs.buildGoModule {
-            pname = "game-operator";
+          dionysus = pkgs.buildGoModule {
+            pname = "dionysus";
             version = deployment.chart.appVersion;
             src = ./.;
             # TODO(reconcile): replace with the real hash from the first
-            # `nix build .#game-operator` run output.
+            # `nix build .#dionysus` run output.
             vendorHash = lib.fakeHash;
             subPackages = [
               "cmd/manager"
@@ -49,12 +49,12 @@
             doCheck = false;
           };
 
-          game-operator-image = pkgs.dockerTools.buildLayeredImage {
+          dionysus-image = pkgs.dockerTools.buildLayeredImage {
             name = deployment.image.repository;
             tag = "dev";
             contents = [ pkgs.cacert ];
             config = {
-              Entrypoint = [ "${game-operator}/bin/manager" ];
+              Entrypoint = [ "${dionysus}/bin/manager" ];
               Env = [
                 "SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
               ];
@@ -66,8 +66,8 @@
         in
         {
           packages = {
-            default = game-operator;
-            inherit game-operator game-operator-image;
+            default = dionysus;
+            inherit dionysus dionysus-image;
             helm-chart = deployment.helmChart pkgs;
             k8s-manifests = deployment.k8sManifests pkgs;
           };

@@ -1,10 +1,10 @@
-# Default values for the game-operator Helm chart. These mirror the
-# structure produced by nix/game/deployment.nix; Flux overrides via
+# Default values for the dionysus Helm chart. These mirror the
+# structure produced by nix/dionysus/deployment.nix; Flux overrides via
 # HelmRelease.spec.values in nixlab.
 replicaCount: 1
 
 image:
-  repository: ghcr.io/olivecasazza/game-operator
+  repository: ghcr.io/olivecasazza/dionysus
   tag: ""
   pullPolicy: IfNotPresent
 
@@ -13,7 +13,7 @@ imagePullSecrets:
 
 serviceAccount:
   create: true
-  name: game-operator
+  name: dionysus
 
 metrics:
   enabled: true

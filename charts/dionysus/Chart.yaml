@@ -1,0 +1,6 @@
+apiVersion: v2
+appVersion: 0.1.0
+description: Dionysus — Game Server Operator for Kubernetes (HostedGame CRD)
+name: dionysus
+type: application
+version: 0.1.0

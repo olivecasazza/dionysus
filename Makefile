@@ -7,8 +7,8 @@ manifests:
 	go run sigs.k8s.io/controller-tools/cmd/controller-gen@v0.21.0 \
 		paths=./api/... \
 		crd:crdVersions=v1 \
-		output:dir=./charts/game/crds
-	@mv charts/game/crds/games.game-operator.io_hostedgames.yaml charts/game/crds/games-crds.yaml || true
+		output:dir=./charts/dionysus/crds
+	@mv charts/dionysus/crds/games.dionysus.io_hostedgames.yaml charts/dionysus/crds/games-crds.yaml || true
 
 build:
 	go build ./...
@@ -20,7 +20,7 @@ nix-chart:
 	nix build .#helm-chart --print-out-paths
 
 nix-image:
-	nix build .#game-operator-image --print-out-paths
+	nix build .#dionysus-image --print-out-paths
 
 nix-manifests:
 	nix build .#k8s-manifests --print-out-paths

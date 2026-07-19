@@ -12,7 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 
-	gamesv1alpha1 "github.com/olivecasazza/game-operator/api/v1alpha1"
+	gamesv1alpha1 "github.com/olivecasazza/dionysus/api/v1alpha1"
 )
 
 // Scheme is the single shared scheme used by every operator component.

@@ -8,7 +8,7 @@ import (
 
 	batchv1 "k8s.io/api/batch/v1"
 
-	gamesv1alpha1 "github.com/olivecasazza/game-operator/api/v1alpha1"
+	gamesv1alpha1 "github.com/olivecasazza/dionysus/api/v1alpha1"
 )
 
 // Driver renders the desired backup CronJob for a game. Implementations must
