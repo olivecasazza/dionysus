@@ -1,0 +1,24 @@
+# Go
+/bin/
+/dist/
+*.test
+*.out
+vendor/
+go.work
+go.work.sum
+
+# Nix
+result
+result-*
+.direnv/
+.envrc.local
+
+# editor / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# controller-gen output (regenerated, do not commit)
+/config/crd/bases/
+/config/rbac/role.yaml
