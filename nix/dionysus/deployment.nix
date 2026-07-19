@@ -56,6 +56,29 @@ rec {
     };
   };
 
+  # discord is the HTTP interactions bot. Runs as its own Deployment
+  # alongside the controller. Disabled by default — operator deploys
+  # without it; nixlab opts in via HelmRelease values when the Discord
+  # app credentials exist.
+  discord = {
+    enabled = false;
+    port = 8080;
+    image = {
+      repository = "${image.repository}-discord";
+      pullPolicy = "IfNotPresent";
+      tag = "latest";
+    };
+    resources = {
+      requests = {
+        cpu = "50m";
+        memory = "64Mi";
+      };
+      limits = {
+        memory = "128Mi";
+      };
+    };
+  };
+
   api = {
     group = "games.dionysus.io";
     version = "v1alpha1";
@@ -319,7 +342,130 @@ rec {
         ];
       };
     }
+
+    # ── Discord bot ────────────────────────────────────────────────
+    # The bot is a separate Deployment+Service so its rollout, scaling,
+    # and resource profile are independent from the controller. Disabled
+    # by default; enabled via HelmRelease values when Discord app
+    # credentials exist. The image is the same Go module's cmd/discord-bot
+    # binary, published under a -discord tag suffix.
+
+    # Discord Service: ClusterIP on the bot's HTTP port. An Ingress
+    # (created outside the operator chart, since it depends on the
+    # cluster's ingress setup) exposes /interactions to Discord.
+    {
+      apiVersion = "v1";
+      kind = "Service";
+      metadata = {
+        name = "${fullname}-discord";
+        labels = labels // {
+          "app.kubernetes.io/component" = "discord";
+        };
+      };
+      spec = {
+        type = "ClusterIP";
+        ports = [
+          {
+            port = discord.port;
+            targetPort = "http";
+            protocol = "TCP";
+            name = "http";
+          }
+        ];
+        selector = selectorLabels // {
+          "app.kubernetes.io/component" = "discord";
+        };
+      };
+    }
+
+    # Discord Deployment. Env vars come from a Secret named
+    # <release>-discord-creds (created by the consumer; the operator
+    # chart does not own the Secret so consumers can rotate without a
+    # chart bump).
+    {
+      apiVersion = "apps/v1";
+      kind = "Deployment";
+      metadata = {
+        name = "${fullname}-discord";
+        labels = labels // {
+          "app.kubernetes.io/component" = "discord";
+        };
+      };
+      spec = {
+        replicas = 1;
+        selector.matchLabels = selectorLabels // {
+          "app.kubernetes.io/component" = "discord";
+        };
+        template = {
+          metadata.labels = selectorLabels // {
+            "app.kubernetes.io/component" = "discord";
+          };
+          spec = {
+            serviceAccountName = operator.serviceAccountName;
+            imagePullSecrets = [ { name = "ghcr-pull"; } ];
+            containers = [
+              {
+                name = "discord";
+                image = "${discord.image.repository}:${discord.image.tag}";
+                imagePullPolicy = discord.image.pullPolicy;
+                ports = [
+                  {
+                    name = "http";
+                    containerPort = discord.port;
+                    protocol = "TCP";
+                  }
+                ];
+                env = [
+                  {
+                    name = "DISCORD_PUBLIC_KEY";
+                    valueFrom.secretKeyRef = {
+                      name = "${fullname}-discord-creds";
+                      key = "public-key";
+                    };
+                  }
+                  {
+                    name = "DISCORD_APP_ID";
+                    valueFrom.secretKeyRef = {
+                      name = "${fullname}-discord-creds";
+                      key = "app-id";
+                    };
+                  }
+                  {
+                    name = "DISCORD_BOT_TOKEN";
+                    valueFrom.secretKeyRef = {
+                      name = "${fullname}-discord-creds";
+                      key = "bot-token";
+                    };
+                  }
+                ];
+                resources = discord.resources;
+                livenessProbe.httpGet = {
+                  path = "/healthz";
+                  port = "http";
+                };
+                readinessProbe.httpGet = {
+                  path = "/healthz";
+                  port = "http";
+                };
+              }
+            ];
+          };
+        };
+      };
+    }
   ];
+
+  # Indices into k8sObjects — referenced by helmDeployment / helmTemplates
+  # below. Documented here so reordering the list above doesn't silently
+  # break the templating. Order:
+  #   0: ServiceAccount
+  #   1: operator Deployment
+  #   2: metrics Service
+  #   3: ClusterRole
+  #   4: ClusterRoleBinding
+  #   5: ServiceMonitor
+  #   6: discord Service
+  #   7: discord Deployment
 
   helmValues = {
     replicaCount = operator.replicas;
@@ -337,6 +483,12 @@ rec {
       serviceMonitor = observability.metrics.serviceMonitor;
     };
     resources = operator.resources;
+    discord = discord // {
+      enabled = false; # consumer opts in
+      image = discord.image // {
+        tag = "";
+      };
+    };
   };
 
   # ── Helm chart rendering ──────────────────────────────────────────
@@ -369,6 +521,24 @@ rec {
         name = operator.serviceAccountName;
         namespace = "{{ .Release.Namespace }}";
       }
+    ];
+  };
+
+  # Discord Deployment with templated image — same pattern as
+  # helmDeployment. The discord Service is rendered verbatim (its spec
+  # has no values to substitute).
+  discordDeployment = builtins.elemAt k8sObjects 7;
+  discordContainer = builtins.elemAt discordDeployment.spec.template.spec.containers 0;
+
+  helmDiscordDeployment = lib.recursiveUpdate discordDeployment {
+    spec.template.spec.containers = [
+      (
+        discordContainer
+        // {
+          image = "{{ .Values.discord.image.repository }}:{{ .Values.discord.image.tag }}";
+          imagePullPolicy = "{{ .Values.discord.image.pullPolicy }}";
+        }
+      )
     ];
   };
 
@@ -405,6 +575,20 @@ rec {
       (builtins.elemAt k8sObjects 3)
       helmOperatorClusterRoleBinding
     ];
+    # discord template wraps Service + Deployment in a single Helm
+    # conditional so the whole bot is opt-in via values.discord.enabled.
+    # Default is false; consumers (nixlab) opt in when they have Discord
+    # app credentials.
+    discord = pkgs.runCommand "discord.yaml" { } ''
+      echo '{{- if .Values.discord.enabled }}' > $out
+      cat ${
+        renderObjects pkgs "discord-objects.yaml" [
+          (builtins.elemAt k8sObjects 6)
+          helmDiscordDeployment
+        ]
+      } >> $out
+      echo '{{- end }}' >> $out
+    '';
   };
 
   # helmChart assembles the chart directory consumed by Flux's
@@ -428,6 +612,7 @@ rec {
         cp ${templates.service} $out/templates/service.yaml
         cp ${templates.observability} $out/templates/observability.yaml
         cp ${templates.rbac} $out/templates/rbac.yaml
+        cp ${templates.discord} $out/templates/discord.yaml
         cp ${renderYaml pkgs "values.yaml" (removeNulls helmValues)} $out/values.yaml
         cp ${
           renderYaml pkgs "Chart.yaml" {
@@ -456,7 +641,7 @@ rec {
       dontUnpack = true;
       nativeBuildInputs = [ pkgs.yq-go ];
       installPhase = ''
-        cat ${renderObjects pkgs "game-manifests.yaml" k8sObjects} > $out
+        cat ${renderObjects pkgs "dionysus-manifests.yaml" k8sObjects} > $out
       '';
     };
 }

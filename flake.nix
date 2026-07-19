@@ -37,9 +37,10 @@
             src = ./.;
             # TODO(reconcile): replace with the real hash from the first
             # `nix build .#dionysus` run output.
-            vendorHash = lib.fakeHash;
+            vendorHash = "sha256-DohgzIt4Xjc6SIbzcSY1htMlp1jKXq0jcHJqQ11iByc=";
             subPackages = [
               "cmd/manager"
+              "cmd/discord-bot"
             ];
             ldflags = [
               "-s"
@@ -63,11 +64,29 @@
               };
             };
           };
+
+          # discord-image is the HTTP interactions bot. Runs in its own
+          # Deployment; see deployment.nix k8sObjects. The image is
+          # published to the same GHCR path under a :discord tag.
+          dionysus-discord-image = pkgs.dockerTools.buildLayeredImage {
+            name = "${deployment.image.repository}-discord";
+            tag = "dev";
+            contents = [ pkgs.cacert ];
+            config = {
+              Entrypoint = [ "${dionysus}/bin/discord-bot" ];
+              Env = [
+                "SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
+              ];
+              ExposedPorts = {
+                "8080/tcp" = { };
+              };
+            };
+          };
         in
         {
           packages = {
             default = dionysus;
-            inherit dionysus dionysus-image;
+            inherit dionysus dionysus-image dionysus-discord-image;
             helm-chart = deployment.helmChart pkgs;
             k8s-manifests = deployment.k8sManifests pkgs;
           };
