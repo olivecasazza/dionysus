@@ -37,7 +37,7 @@
             src = ./.;
             # TODO(reconcile): replace with the real hash from the first
             # `nix build .#dionysus` run output.
-            vendorHash = "sha256-DohgzIt4Xjc6SIbzcSY1htMlp1jKXq0jcHJqQ11iByc=";
+            vendorHash = "sha256-sD4JtEFay+CugYvV1gQRKcfqNqxkQ9ATOw1VXTm+4aE=";
             subPackages = [
               "cmd/manager"
               "cmd/discord-bot"
