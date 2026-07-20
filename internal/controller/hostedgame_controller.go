@@ -58,6 +58,9 @@ func (r *HostedGameReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	game := &gamesv1alpha1.HostedGame{}
 	if err := r.Get(ctx, req.NamespacedName, game); err != nil {
 		if apierrors.IsNotFound(err) {
+			// Clear the deleted game's metric series so dashboards don't
+			// retain a stale game.
+			deleteGameMetrics(req.Name, req.Namespace)
 			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, err
@@ -115,6 +118,10 @@ func (r *HostedGameReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	if idleDecision.Players != nil {
 		newStatus.Players = idleDecision.Players
 	}
+	// Publish observed state to Prometheus every reconcile (cheap gauge sets),
+	// so phase/players/backup metrics track reality without waiting on a status
+	// change.
+	recordGameMetrics(game, newStatus)
 	if !statusEqual(game.Status, newStatus) {
 		patchBase := client.MergeFrom(game.DeepCopy())
 		game.Status = newStatus

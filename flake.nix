@@ -32,7 +32,7 @@
           # real hash; update it here and rebuild. This is the standard
           # bootstrapping pattern for Go flakes.
           dionysus = pkgs.buildGoModule {
-            pname = "dionysus";
+            pname = "dionysus-operator";
             version = deployment.chart.appVersion;
             src = ./.;
             # TODO(reconcile): replace with the real hash from the first
@@ -69,7 +69,7 @@
           # Deployment; see deployment.nix k8sObjects. The image is
           # published to the same GHCR path under a :discord tag.
           dionysus-discord-image = pkgs.dockerTools.buildLayeredImage {
-            name = "${deployment.image.repository}-discord";
+            name = "ghcr.io/olivecasazza/dionysus-discord";
             tag = "dev";
             contents = [ pkgs.cacert ];
             config = {

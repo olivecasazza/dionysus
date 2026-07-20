@@ -4,12 +4,12 @@ kind: Service
 metadata:
   labels:
     app.kubernetes.io/component: discord
-    app.kubernetes.io/instance: dionysus
+    app.kubernetes.io/instance: dionysus-operator
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/name: dionysus
+    app.kubernetes.io/name: dionysus-operator
     app.kubernetes.io/version: 0.1.0
-    helm.sh/chart: dionysus-0.1.0
-  name: dionysus-discord
+    helm.sh/chart: dionysus-operator-0.1.0
+  name: dionysus-operator-discord
 spec:
   ports:
     - name: http
@@ -18,8 +18,8 @@ spec:
       targetPort: http
   selector:
     app.kubernetes.io/component: discord
-    app.kubernetes.io/instance: dionysus
-    app.kubernetes.io/name: dionysus
+    app.kubernetes.io/instance: dionysus-operator
+    app.kubernetes.io/name: dionysus-operator
   type: ClusterIP
 ---
 apiVersion: apps/v1
@@ -27,25 +27,25 @@ kind: Deployment
 metadata:
   labels:
     app.kubernetes.io/component: discord
-    app.kubernetes.io/instance: dionysus
+    app.kubernetes.io/instance: dionysus-operator
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/name: dionysus
+    app.kubernetes.io/name: dionysus-operator
     app.kubernetes.io/version: 0.1.0
-    helm.sh/chart: dionysus-0.1.0
-  name: dionysus-discord
+    helm.sh/chart: dionysus-operator-0.1.0
+  name: dionysus-operator-discord
 spec:
   replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/component: discord
-      app.kubernetes.io/instance: dionysus
-      app.kubernetes.io/name: dionysus
+      app.kubernetes.io/instance: dionysus-operator
+      app.kubernetes.io/name: dionysus-operator
   template:
     metadata:
       labels:
         app.kubernetes.io/component: discord
-        app.kubernetes.io/instance: dionysus
-        app.kubernetes.io/name: dionysus
+        app.kubernetes.io/instance: dionysus-operator
+        app.kubernetes.io/name: dionysus-operator
     spec:
       containers:
         - env:
@@ -53,17 +53,17 @@ spec:
               valueFrom:
                 secretKeyRef:
                   key: public-key
-                  name: dionysus-discord-creds
+                  name: dionysus-operator-discord-creds
             - name: DISCORD_APP_ID
               valueFrom:
                 secretKeyRef:
                   key: app-id
-                  name: dionysus-discord-creds
+                  name: dionysus-operator-discord-creds
             - name: DISCORD_BOT_TOKEN
               valueFrom:
                 secretKeyRef:
                   key: bot-token
-                  name: dionysus-discord-creds
+                  name: dionysus-operator-discord-creds
           image: '{{ .Values.discord.image.repository }}:{{ .Values.discord.image.tag }}'
           imagePullPolicy: '{{ .Values.discord.image.pullPolicy }}'
           livenessProbe:
@@ -87,5 +87,5 @@ spec:
               memory: 64Mi
       imagePullSecrets:
         - name: ghcr-pull
-      serviceAccountName: dionysus
+      serviceAccountName: dionysus-operator
 {{- end }}

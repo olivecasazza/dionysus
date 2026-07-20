@@ -1,0 +1,22 @@
+{{- if .Values.grafana.enabled }}
+apiVersion: grafana.integreatly.org/v1beta1
+kind: GrafanaDashboard
+metadata:
+  labels:
+    app: grafana
+    app.kubernetes.io/instance: dionysus-operator
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: dionysus-operator
+    app.kubernetes.io/version: 0.1.0
+    helm.sh/chart: dionysus-operator-0.1.0
+  name: dionysus-operator
+spec:
+  datasources:
+    - datasourceName: Prometheus
+      inputName: DS_PROMETHEUS
+  folder: Dionysus
+  instanceSelector:
+    matchLabels:
+      dashboards: grafana
+  json: '{"annotations":{"list":[]},"editable":true,"graphTooltip":1,"panels":[{"collapsed":false,"gridPos":{"h":1,"w":24,"x":0,"y":0},"title":"HostedGames","type":"row"},{"datasource":{"uid":"prometheus"},"fieldConfig":{"defaults":{"color":{"mode":"fixed"}}},"gridPos":{"h":6,"w":6,"x":0,"y":1},"targets":[{"datasource":{"uid":"prometheus"},"expr":"count(dionysus_hostedgame_phase{phase=\"Running\"} == 1) or vector(0)","refId":"A"}],"title":"Games Running","type":"stat"},{"datasource":{"uid":"prometheus"},"fieldConfig":{"defaults":{"color":{"mode":"palette-classic"}}},"gridPos":{"h":6,"w":9,"x":6,"y":1},"targets":[{"datasource":{"uid":"prometheus"},"expr":"dionysus_hostedgame_players_online{game=~\"$game\"}","legendFormat":"{{game}}","refId":"A"}],"title":"Players Online (per game)","type":"timeseries"},{"datasource":{"uid":"prometheus"},"fieldConfig":{"defaults":{"color":{"mode":"palette-classic"}}},"gridPos":{"h":6,"w":9,"x":15,"y":1},"targets":[{"datasource":{"uid":"prometheus"},"expr":"dionysus_hostedgame_phase{game=~\"$game\"} == 1","legendFormat":"{{game}} {{phase}}","refId":"A"}],"title":"Game Phase","type":"state-timeline"},{"collapsed":false,"gridPos":{"h":1,"w":24,"x":0,"y":7},"title":"Operator Health","type":"row"},{"datasource":{"uid":"prometheus"},"fieldConfig":{"defaults":{"color":{"mode":"palette-classic"},"unit":"ops"}},"gridPos":{"h":7,"w":8,"x":0,"y":8},"targets":[{"datasource":{"uid":"prometheus"},"expr":"sum by (controller) (rate(controller_runtime_reconcile_total{controller=~\"hostedgame.*\"}[5m]))","legendFormat":"{{controller}}","refId":"A"}],"title":"Reconcile Rate","type":"timeseries"},{"datasource":{"uid":"prometheus"},"fieldConfig":{"defaults":{"color":{"fixedColor":"red","mode":"fixed"},"unit":"ops"}},"gridPos":{"h":7,"w":8,"x":8,"y":8},"targets":[{"datasource":{"uid":"prometheus"},"expr":"sum by (controller) (rate(controller_runtime_reconcile_errors_total{controller=~\"hostedgame.*\"}[5m]))","legendFormat":"{{controller}}","refId":"A"}],"title":"Reconcile Errors","type":"timeseries"},{"datasource":{"uid":"prometheus"},"fieldConfig":{"defaults":{"color":{"mode":"palette-classic"},"unit":"s"}},"gridPos":{"h":7,"w":8,"x":16,"y":8},"targets":[{"datasource":{"uid":"prometheus"},"expr":"histogram_quantile(0.99, sum by (le) (rate(controller_runtime_reconcile_time_seconds_bucket{controller=~\"hostedgame.*\"}[5m])))","legendFormat":"p99","refId":"A"}],"title":"Reconcile Latency (p99)","type":"timeseries"},{"collapsed":false,"gridPos":{"h":1,"w":24,"x":0,"y":15},"title":"Backups","type":"row"},{"datasource":{"uid":"prometheus"},"fieldConfig":{"defaults":{"color":{"mode":"palette-classic"},"unit":"s"}},"gridPos":{"h":7,"w":12,"x":0,"y":16},"targets":[{"datasource":{"uid":"prometheus"},"expr":"time() - dionysus_hostedgame_backup_last_success_timestamp_seconds{game=~\"$game\"}","legendFormat":"{{game}}","refId":"A"}],"title":"Time Since Last Successful Backup","type":"timeseries"},{"datasource":{"uid":"prometheus"},"fieldConfig":{"defaults":{"color":{"mode":"palette-classic"}}},"gridPos":{"h":7,"w":12,"x":12,"y":16},"targets":[{"datasource":{"uid":"prometheus"},"expr":"sum by (name) (workqueue_depth{name=~\".*osted.*|.*game.*\"})","legendFormat":"{{name}}","refId":"A"}],"title":"Workqueue Depth","type":"timeseries"}],"schemaVersion":39,"style":"dark","tags":["dionysus","games","operator"],"templating":{"list":[{"allValue":".*","current":{"text":"All","value":"$__all"},"datasource":{"uid":"prometheus"},"includeAll":true,"label":"Game","multi":true,"name":"game","query":"label_values(dionysus_hostedgame_phase, game)","refresh":2,"type":"query"}]},"time":{"from":"now-6h","to":"now"},"title":"Dionysus / Operator","uid":"dionysus-operator"}'
+{{- end }}

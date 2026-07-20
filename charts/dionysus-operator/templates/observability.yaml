@@ -1,0 +1,18 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    app.kubernetes.io/instance: dionysus-operator
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: dionysus-operator
+    app.kubernetes.io/version: 0.1.0
+    helm.sh/chart: dionysus-operator-0.1.0
+  name: dionysus-operator
+spec:
+  endpoints:
+    - interval: 15s
+      port: metrics
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: dionysus-operator
+      app.kubernetes.io/name: dionysus-operator

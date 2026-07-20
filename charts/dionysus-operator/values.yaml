@@ -11,9 +11,11 @@ discord:
     requests:
       cpu: 50m
       memory: 64Mi
+grafana:
+  enabled: true
 image:
   pullPolicy: IfNotPresent
-  repository: ghcr.io/olivecasazza/dionysus
+  repository: ghcr.io/olivecasazza/dionysus-operator
   tag: ''
 imagePullSecrets:
 - name: ghcr-pull
@@ -32,4 +34,4 @@ resources:
     memory: 128Mi
 serviceAccount:
   create: true
-  name: dionysus
+  name: dionysus-operator

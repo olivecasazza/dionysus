@@ -13,28 +13,28 @@ let
 in
 rec {
   chart = {
-    name = "dionysus";
+    name = "dionysus-operator";
     description = "Dionysus — Game Server Operator for Kubernetes (HostedGame CRD)";
     version = "0.1.0";
     appVersion = "0.1.0";
   };
 
   namespace = "games";
-  releaseName = "dionysus";
+  releaseName = "dionysus-operator";
 
   image = {
-    repository = "ghcr.io/olivecasazza/dionysus";
+    repository = "ghcr.io/olivecasazza/dionysus-operator";
     pullPolicy = "IfNotPresent";
     # Flux ImagePolicy replaces this with the latest digest-pinned tag.
     # The literal "latest" is a placeholder; the nixlab HelmRelease
-    # carries the {"$imagepolicy": "apps:dionysus"} setter marker.
+    # carries the {"$imagepolicy": "apps:dionysus-operator"} setter marker.
     tag = "latest";
   };
 
   operator = {
     replicas = 1;
     metricsPort = 8080;
-    serviceAccountName = "dionysus";
+    serviceAccountName = "dionysus-operator";
     resources = {
       requests = {
         cpu = "100m";
@@ -54,6 +54,14 @@ rec {
         interval = "15s";
       };
     };
+    # Colocated Grafana dashboard shipped by the chart. Auto-integrates with
+    # the cluster Grafana via the operator's dashboards=grafana instanceSelector;
+    # lands in its own folder. Gated by .Values.grafana.enabled so consumers
+    # without the Grafana operator can turn it off.
+    grafana = {
+      enabled = true;
+      folder = "Dionysus";
+    };
   };
 
   # discord is the HTTP interactions bot. Runs as its own Deployment
@@ -64,7 +72,9 @@ rec {
     enabled = false;
     port = 8080;
     image = {
-      repository = "${image.repository}-discord";
+      # Keep the discord image name fixed so it stays dionysus-discord even
+      # though the operator image was renamed to dionysus-operator.
+      repository = "ghcr.io/olivecasazza/dionysus-discord";
       pullPolicy = "IfNotPresent";
       tag = "latest";
     };
@@ -458,6 +468,278 @@ rec {
         };
       };
     }
+
+    # ── Grafana dashboard (colocated observability) ────────────────
+    # Ships with the chart so operator metrics land in Grafana automatically.
+    # Rendered under a .Values.grafana.enabled conditional; carries the
+    # dashboards=grafana instanceSelector the Grafana operator watches and a
+    # dedicated folder, mirroring athena's dashboard organization. Panels use
+    # only metrics that exist: the custom dionysus_hostedgame_* gauges plus
+    # controller-runtime defaults.
+    {
+      apiVersion = "grafana.integreatly.org/v1beta1";
+      kind = "GrafanaDashboard";
+      metadata = {
+        name = fullname;
+        labels = labels // {
+          app = "grafana";
+        };
+      };
+      spec = {
+        instanceSelector.matchLabels.dashboards = "grafana";
+        folder = observability.grafana.folder;
+        datasources = [
+          {
+            inputName = "DS_PROMETHEUS";
+            datasourceName = "Prometheus";
+          }
+        ];
+        json = builtins.toJSON {
+          annotations.list = [ ];
+          editable = true;
+          graphTooltip = 1;
+          schemaVersion = 39;
+          style = "dark";
+          tags = [
+            "dionysus"
+            "games"
+            "operator"
+          ];
+          time = {
+            from = "now-6h";
+            to = "now";
+          };
+          title = "Dionysus / Operator";
+          uid = "dionysus-operator";
+          templating.list = [
+            {
+              name = "game";
+              label = "Game";
+              type = "query";
+              datasource.uid = "prometheus";
+              query = "label_values(dionysus_hostedgame_phase, game)";
+              refresh = 2;
+              includeAll = true;
+              allValue = ".*";
+              multi = true;
+              current = {
+                text = "All";
+                value = "$__all";
+              };
+            }
+          ];
+          panels = [
+            {
+              type = "row";
+              title = "HostedGames";
+              gridPos = {
+                h = 1;
+                w = 24;
+                x = 0;
+                y = 0;
+              };
+              collapsed = false;
+            }
+            {
+              type = "stat";
+              title = "Games Running";
+              datasource.uid = "prometheus";
+              gridPos = {
+                h = 6;
+                w = 6;
+                x = 0;
+                y = 1;
+              };
+              targets = [
+                {
+                  datasource.uid = "prometheus";
+                  expr = ''count(dionysus_hostedgame_phase{phase="Running"} == 1) or vector(0)'';
+                  refId = "A";
+                }
+              ];
+              fieldConfig.defaults.color.mode = "fixed";
+            }
+            {
+              type = "timeseries";
+              title = "Players Online (per game)";
+              datasource.uid = "prometheus";
+              gridPos = {
+                h = 6;
+                w = 9;
+                x = 6;
+                y = 1;
+              };
+              targets = [
+                {
+                  datasource.uid = "prometheus";
+                  expr = ''dionysus_hostedgame_players_online{game=~"$game"}'';
+                  legendFormat = "{{game}}";
+                  refId = "A";
+                }
+              ];
+              fieldConfig.defaults.color.mode = "palette-classic";
+            }
+            {
+              type = "state-timeline";
+              title = "Game Phase";
+              datasource.uid = "prometheus";
+              gridPos = {
+                h = 6;
+                w = 9;
+                x = 15;
+                y = 1;
+              };
+              targets = [
+                {
+                  datasource.uid = "prometheus";
+                  expr = ''dionysus_hostedgame_phase{game=~"$game"} == 1'';
+                  legendFormat = "{{game}} {{phase}}";
+                  refId = "A";
+                }
+              ];
+              fieldConfig.defaults.color.mode = "palette-classic";
+            }
+            {
+              type = "row";
+              title = "Operator Health";
+              gridPos = {
+                h = 1;
+                w = 24;
+                x = 0;
+                y = 7;
+              };
+              collapsed = false;
+            }
+            {
+              type = "timeseries";
+              title = "Reconcile Rate";
+              datasource.uid = "prometheus";
+              gridPos = {
+                h = 7;
+                w = 8;
+                x = 0;
+                y = 8;
+              };
+              targets = [
+                {
+                  datasource.uid = "prometheus";
+                  expr = ''sum by (controller) (rate(controller_runtime_reconcile_total{controller=~"hostedgame.*"}[5m]))'';
+                  legendFormat = "{{controller}}";
+                  refId = "A";
+                }
+              ];
+              fieldConfig.defaults = {
+                unit = "ops";
+                color.mode = "palette-classic";
+              };
+            }
+            {
+              type = "timeseries";
+              title = "Reconcile Errors";
+              datasource.uid = "prometheus";
+              gridPos = {
+                h = 7;
+                w = 8;
+                x = 8;
+                y = 8;
+              };
+              targets = [
+                {
+                  datasource.uid = "prometheus";
+                  expr = ''sum by (controller) (rate(controller_runtime_reconcile_errors_total{controller=~"hostedgame.*"}[5m]))'';
+                  legendFormat = "{{controller}}";
+                  refId = "A";
+                }
+              ];
+              fieldConfig.defaults = {
+                unit = "ops";
+                color = {
+                  mode = "fixed";
+                  fixedColor = "red";
+                };
+              };
+            }
+            {
+              type = "timeseries";
+              title = "Reconcile Latency (p99)";
+              datasource.uid = "prometheus";
+              gridPos = {
+                h = 7;
+                w = 8;
+                x = 16;
+                y = 8;
+              };
+              targets = [
+                {
+                  datasource.uid = "prometheus";
+                  expr = ''histogram_quantile(0.99, sum by (le) (rate(controller_runtime_reconcile_time_seconds_bucket{controller=~"hostedgame.*"}[5m])))'';
+                  legendFormat = "p99";
+                  refId = "A";
+                }
+              ];
+              fieldConfig.defaults = {
+                unit = "s";
+                color.mode = "palette-classic";
+              };
+            }
+            {
+              type = "row";
+              title = "Backups";
+              gridPos = {
+                h = 1;
+                w = 24;
+                x = 0;
+                y = 15;
+              };
+              collapsed = false;
+            }
+            {
+              type = "timeseries";
+              title = "Time Since Last Successful Backup";
+              datasource.uid = "prometheus";
+              gridPos = {
+                h = 7;
+                w = 12;
+                x = 0;
+                y = 16;
+              };
+              targets = [
+                {
+                  datasource.uid = "prometheus";
+                  expr = ''time() - dionysus_hostedgame_backup_last_success_timestamp_seconds{game=~"$game"}'';
+                  legendFormat = "{{game}}";
+                  refId = "A";
+                }
+              ];
+              fieldConfig.defaults = {
+                unit = "s";
+                color.mode = "palette-classic";
+              };
+            }
+            {
+              type = "timeseries";
+              title = "Workqueue Depth";
+              datasource.uid = "prometheus";
+              gridPos = {
+                h = 7;
+                w = 12;
+                x = 12;
+                y = 16;
+              };
+              targets = [
+                {
+                  datasource.uid = "prometheus";
+                  expr = ''sum by (name) (workqueue_depth{name=~".*osted.*|.*game.*"})'';
+                  legendFormat = "{{name}}";
+                  refId = "A";
+                }
+              ];
+              fieldConfig.defaults.color.mode = "palette-classic";
+            }
+          ];
+        };
+      };
+    }
   ];
 
   # Indices into k8sObjects — referenced by helmDeployment / helmTemplates
@@ -471,6 +753,7 @@ rec {
   #   5: ServiceMonitor
   #   6: discord Service
   #   7: discord Deployment
+  #   8: GrafanaDashboard
 
   helmValues = {
     replicaCount = operator.replicas;
@@ -488,6 +771,9 @@ rec {
       serviceMonitor = observability.metrics.serviceMonitor;
     };
     resources = operator.resources;
+    grafana = {
+      enabled = observability.grafana.enabled;
+    };
     discord = discord // {
       enabled = false; # consumer opts in
       image = discord.image // {
@@ -575,6 +861,17 @@ rec {
     observability = renderObjects pkgs "observability.yaml" [
       (builtins.elemAt k8sObjects 5)
     ];
+    # Grafana dashboard wrapped in .Values.grafana.enabled so consumers
+    # without the Grafana operator can disable it (default on).
+    dashboard = pkgs.runCommand "dashboard.yaml" { } ''
+      echo '{{- if .Values.grafana.enabled }}' > $out
+      cat ${
+        renderObjects pkgs "dashboard-objects.yaml" [
+          (builtins.elemAt k8sObjects 8)
+        ]
+      } >> $out
+      echo '{{- end }}' >> $out
+    '';
     rbac = renderObjects pkgs "rbac.yaml" [
       (builtins.elemAt k8sObjects 0)
       (builtins.elemAt k8sObjects 3)
@@ -597,7 +894,7 @@ rec {
   };
 
   # helmChart assembles the chart directory consumed by Flux's
-  # HelmRelease. CRDs come from the committed charts/dionysus/crds/ dir
+  # HelmRelease. CRDs come from the committed charts/dionysus-operator/crds/ dir
   # (generated from Go types via controller-gen); templates come from
   # the rendered Helm-syntax objects above.
   helmChart =
@@ -606,9 +903,9 @@ rec {
       templates = helmTemplates pkgs;
     in
     pkgs.stdenvNoCC.mkDerivation {
-      pname = "dionysus-helm-chart";
+      pname = "dionysus-operator-helm-chart";
       version = chart.version;
-      src = ../../charts/dionysus;
+      src = ../../charts/dionysus-operator;
       dontBuild = true;
       installPhase = ''
         mkdir -p $out/templates $out/crds
@@ -617,6 +914,7 @@ rec {
         cp ${templates.service} $out/templates/service.yaml
         cp ${templates.observability} $out/templates/observability.yaml
         cp ${templates.rbac} $out/templates/rbac.yaml
+        cp ${templates.dashboard} $out/templates/dashboard.yaml
         cp ${templates.discord} $out/templates/discord.yaml
         cp ${renderYaml pkgs "values.yaml" (removeNulls helmValues)} $out/values.yaml
         cp ${
@@ -641,12 +939,12 @@ rec {
   k8sManifests =
     pkgs:
     pkgs.stdenvNoCC.mkDerivation {
-      pname = "dionysus-k8s-manifests";
+      pname = "dionysus-operator-k8s-manifests";
       version = chart.version;
       dontUnpack = true;
       nativeBuildInputs = [ pkgs.yq-go ];
       installPhase = ''
-        cat ${renderObjects pkgs "dionysus-manifests.yaml" k8sObjects} > $out
+        cat ${renderObjects pkgs "dionysus-operator-manifests.yaml" k8sObjects} > $out
       '';
     };
 }
