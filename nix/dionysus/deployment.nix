@@ -865,11 +865,17 @@ rec {
     # without the Grafana operator can disable it (default on).
     dashboard = pkgs.runCommand "dashboard.yaml" { } ''
       echo '{{- if .Values.grafana.enabled }}' > $out
-      cat ${
-        renderObjects pkgs "dashboard-objects.yaml" [
-          (builtins.elemAt k8sObjects 8)
-        ]
-      } >> $out
+      # Grafana legend syntax ({{game}}, {{controller}}, ...) collides with
+      # Helm templating — Helm parses the file and errors ("function game not
+      # defined"). Escape every {{ }} in the dashboard object to a Helm string
+      # literal so Helm emits them verbatim. Two-marker pass avoids re-matching
+      # the braces the replacement itself introduces.
+      sed -e 's/{{/@@LB@@/g' -e 's/}}/@@RB@@/g' \
+          -e 's/@@LB@@/{{ "{{" }}/g' -e 's/@@RB@@/{{ "}}" }}/g' ${
+            renderObjects pkgs "dashboard-objects.yaml" [
+              (builtins.elemAt k8sObjects 8)
+            ]
+          } >> $out
       echo '{{- end }}' >> $out
     '';
     rbac = renderObjects pkgs "rbac.yaml" [
