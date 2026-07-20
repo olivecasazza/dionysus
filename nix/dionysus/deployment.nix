@@ -487,6 +487,11 @@ rec {
       };
       spec = {
         instanceSelector.matchLabels.dashboards = "grafana";
+        # The chart deploys to apps, but the Grafana instance lives in
+        # monitoring and only imports same-namespace dashboards by default.
+        # Opt into cross-namespace import so the monitoring Grafana picks up
+        # this apps-namespace dashboard.
+        allowCrossNamespaceImport = true;
         folder = observability.grafana.folder;
         datasources = [
           {

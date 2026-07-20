@@ -312,6 +312,7 @@ metadata:
     helm.sh/chart: dionysus-operator-0.1.0
   name: dionysus-operator
 spec:
+  allowCrossNamespaceImport: true
   datasources:
     - datasourceName: Prometheus
       inputName: DS_PROMETHEUS
