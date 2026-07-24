@@ -10,6 +10,7 @@ import (
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -66,13 +67,11 @@ func (r *HostedGameReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, err
 	}
 
-	// 2. Backup wiring is the backup lane's responsibility. Surface it as
-	//    a log line so it's visible in operator logs, but don't fail
-	//    reconcile: the game still runs without backups.
-	if game.Spec.Backup != nil {
-		logger.Info("backup configured but not yet wired; spec.backup ignored",
-			"driver", game.Spec.Backup.Driver,
-			"schedule", game.Spec.Backup.Schedule)
+	// 2. Backup CronJob. Rendered from spec.backup (restic → S3/GCS);
+	//    removed if spec.backup is cleared. A backup failure shouldn't bounce
+	//    the whole reconcile, but a render/apply error is worth surfacing.
+	if err := r.reconcileBackup(ctx, game); err != nil {
+		return ctrl.Result{}, fmt.Errorf("reconcile backup: %w", err)
 	}
 
 	// 3. PVCs. Created if absent; not updated on size change (PVC resize is
@@ -118,6 +117,9 @@ func (r *HostedGameReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	if idleDecision.Players != nil {
 		newStatus.Players = idleDecision.Players
 	}
+	// Carry the backup summary reconcileBackup folded in (computeStatus only
+	// derives phase/players from the Deployment).
+	newStatus.Backup = game.Status.Backup
 	// Publish observed state to Prometheus every reconcile (cheap gauge sets),
 	// so phase/players/backup metrics track reality without waiting on a status
 	// change.
@@ -260,6 +262,59 @@ func (r *HostedGameReconciler) reconcileService(ctx context.Context, game *games
 		}
 	}
 	return updated, nil
+}
+
+// reconcileBackup creates/updates the backup CronJob from spec.backup, deletes
+// it when backup is disabled, and folds the CronJob's last successful run into
+// status.backup so the dashboard/metrics reflect it.
+func (r *HostedGameReconciler) reconcileBackup(ctx context.Context, game *gamesv1alpha1.HostedGame) error {
+	name := game.Name + "-backup"
+	desired, err := resources.GameBackupCronJob(game)
+	if err != nil {
+		return err
+	}
+	if desired == nil {
+		existing := &batchv1.CronJob{}
+		if err := r.Get(ctx, types.NamespacedName{Name: name, Namespace: game.Namespace}, existing); err == nil {
+			if err := r.Delete(ctx, existing); err != nil && !apierrors.IsNotFound(err) {
+				return err
+			}
+		}
+		return nil
+	}
+	if err := resources.SetOwnerReference(game, desired); err != nil {
+		return err
+	}
+
+	live := &batchv1.CronJob{}
+	err = r.Get(ctx, types.NamespacedName{Name: name, Namespace: game.Namespace}, live)
+	if apierrors.IsNotFound(err) {
+		if err := r.Create(ctx, desired); err != nil && !apierrors.IsAlreadyExists(err) {
+			return err
+		}
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+
+	updated := live.DeepCopy()
+	updated.Labels = desired.Labels
+	updated.Spec = desired.Spec
+	if !reflect.DeepEqual(live.Spec, updated.Spec) || !reflect.DeepEqual(live.Labels, updated.Labels) {
+		if err := r.Update(ctx, updated); err != nil {
+			return err
+		}
+	}
+
+	// Surface the last successful run in status (metrics/dashboard read this).
+	if live.Status.LastSuccessfulTime != nil {
+		game.Status.Backup = &gamesv1alpha1.BackupStatus{
+			LastScheduleTime: live.Status.LastSuccessfulTime,
+			LastResult:       "Succeeded",
+		}
+	}
+	return nil
 }
 
 // computeStatus derives the desired HostedGameStatus from the live
