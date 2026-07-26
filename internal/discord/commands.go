@@ -9,19 +9,27 @@ type ApplicationCommand struct {
 	Options     []ApplicationCommandOption `json:"options,omitempty"`
 }
 
+// ApplicationCommandOptionChoice is a fixed value a user may pick.
+type ApplicationCommandOptionChoice struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
 type ApplicationCommandOptionType int
 
 const (
 	OptionSubCommand ApplicationCommandOptionType = 1
 	OptionString     ApplicationCommandOptionType = 3
+	OptionAttachment ApplicationCommandOptionType = 11
 )
 
 type ApplicationCommandOption struct {
-	Type        ApplicationCommandOptionType `json:"type"`
-	Name        string                       `json:"name"`
-	Description string                       `json:"description"`
-	Required    bool                         `json:"required"`
-	Options     []ApplicationCommandOption   `json:"options,omitempty"`
+	Type        ApplicationCommandOptionType     `json:"type"`
+	Name        string                           `json:"name"`
+	Description string                           `json:"description"`
+	Required    bool                             `json:"required"`
+	Options     []ApplicationCommandOption       `json:"options,omitempty"`
+	Choices     []ApplicationCommandOptionChoice `json:"choices,omitempty"`
 }
 
 // Commands returns every slash command the bot registers at startup.
@@ -90,6 +98,43 @@ func Commands() []ApplicationCommand {
 							Name:        "name",
 							Description: "Game name",
 							Required:    true,
+						},
+					},
+				},
+				{
+					Type:        OptionSubCommand,
+					Name:        "upload",
+					Description: "Import a .pak mod or a world archive into a game's volume",
+					Options: []ApplicationCommandOption{
+						{
+							Type:        OptionString,
+							Name:        "name",
+							Description: "Game name",
+							Required:    true,
+						},
+						{
+							Type:        OptionString,
+							Name:        "kind",
+							Description: "What is being imported",
+							Required:    true,
+							Choices: []ApplicationCommandOptionChoice{
+								{Name: "mod (.pak)", Value: "mod"},
+								{Name: "world (archive)", Value: "world"},
+							},
+						},
+						{
+							// An attachment resolves to a Discord CDN URL, so
+							// attachments and links share one code path. A URL
+							// also sidesteps Discord's ~10MB attachment cap,
+							// which no world save fits under.
+							Type:        OptionAttachment,
+							Name:        "file",
+							Description: "File to import (small mods; use url for anything large)",
+						},
+						{
+							Type:        OptionString,
+							Name:        "url",
+							Description: "https:// source to fetch instead of an attachment",
 						},
 					},
 				},
