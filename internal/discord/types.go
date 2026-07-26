@@ -42,6 +42,10 @@ type Interaction struct {
 type InteractionData struct {
 	Name    string              `json:"name"`
 	Options []InteractionOption `json:"options,omitempty"`
+	// Resolved carries the concrete objects behind snowflake-valued
+	// options. For an attachment option, Value is the attachment id and
+	// the URL lives here.
+	Resolved *InteractionResolved `json:"resolved,omitempty"`
 }
 
 // InteractionOption is one positional or named argument.
@@ -96,3 +100,16 @@ type InteractionEmbedFooter struct {
 
 // FlagEphemeral marks a response as visible only to the invoker.
 const FlagEphemeral = 64
+
+// InteractionResolved holds objects referenced by option values.
+type InteractionResolved struct {
+	Attachments map[string]InteractionAttachment `json:"attachments,omitempty"`
+}
+
+// InteractionAttachment is a file the invoker attached to the command.
+type InteractionAttachment struct {
+	ID       string `json:"id"`
+	Filename string `json:"filename"`
+	Size     int64  `json:"size"`
+	URL      string `json:"url"`
+}

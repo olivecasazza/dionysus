@@ -71,7 +71,7 @@ func (b *Bot) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Top-level command is always /game with a subcommand. Resolve which.
 	sub, name := parseSubcommand(inter.Data)
-	resp := b.dispatch(r.Context(), sub, name)
+	resp := b.dispatch(r.Context(), sub, name, inter.Data)
 	writeJSON(w, http.StatusOK, resp)
 }
 
@@ -79,7 +79,7 @@ func (b *Bot) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // HostedGames via the controller-runtime client and returns a response.
 // Errors become ephemeral (only-invoker-visible) messages so a single
 // bad request doesn't spam a channel.
-func (b *Bot) dispatch(ctx context.Context, sub, name string) InteractionResponse {
+func (b *Bot) dispatch(ctx context.Context, sub, name string, data *InteractionData) InteractionResponse {
 	switch sub {
 	case "list":
 		return b.handleList(ctx)
@@ -91,6 +91,8 @@ func (b *Bot) dispatch(ctx context.Context, sub, name string) InteractionRespons
 		return stubResponse("start", "scale-to-1 path pending; idle lane currently owns replicas")
 	case "stop":
 		return stubResponse("stop", "graceful stop pending; idle lane currently owns replicas")
+	case "upload":
+		return b.handleUpload(ctx, name, data)
 	case "backup-now":
 		return stubResponse("backup-now", "ad-hoc Job creation pending controller wiring")
 	default:
