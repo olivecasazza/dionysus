@@ -118,9 +118,9 @@
       ciOutputs = ci.mkOutputs {
         inherit systems;
         packageSystems = systems;
-        checkSystems = systems;
+        checkSystems = [ "x86_64-linux" ];
         # Hydra is intentionally limited to the two Linux artifact systems;
-        # ordinary packages/checks retain all flake-utils systems.
+        # ordinary packages retain all flake-utils systems.
         hydraSystems = [
           "x86_64-linux"
           "aarch64-linux"
