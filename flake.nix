@@ -4,12 +4,17 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
+    hydra-src = {
+      url = "github:olivecasazza/hydra/4060fb888f85b3c273ac56cae665e7c99e99fe1c";
+      flake = false;
+    };
   };
 
   outputs =
     {
       nixpkgs,
       flake-utils,
+      hydra-src,
       ...
     }:
     let
@@ -17,10 +22,12 @@
       # evaluated against either nixpkgs.lib (used by hydraJobs / packages)
       # or lib from another flake (consumer-side composition in nixlab).
       mkDeployment = lib: import ./nix/dionysus/deployment.nix { inherit lib; };
+      systems = flake-utils.lib.defaultSystems;
+      ci = import "${hydra-src}/lib/ci.nix" {
+        inherit (nixpkgs) lib;
+      };
 
-      # System-level outputs (per-system packages, devShells, checks).
-      # hydraJobs at the top level reuses these.
-      outputs = flake-utils.lib.eachDefaultSystem (
+      buildFor =
         system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
@@ -82,8 +89,7 @@
               };
             };
           };
-        in
-        {
+
           packages = {
             default = dionysus;
             inherit dionysus dionysus-image dionysus-discord-image;
@@ -92,12 +98,11 @@
           };
 
           checks = {
-            inherit (outputs.packages.${system})
-              helm-chart
-              k8s-manifests
-              ;
+            inherit (packages) helm-chart k8s-manifests;
           };
-
+        in
+        {
+          inherit packages checks;
           devShells.default = pkgs.mkShell {
             packages = [
               pkgs.go_1_26
@@ -107,21 +112,29 @@
               pkgs.golangci-lint
             ];
           };
-        }
-      );
+        };
+
+      perSystem = nixpkgs.lib.genAttrs systems buildFor;
+      ciOutputs = ci.mkOutputs {
+        inherit systems;
+        packageSystems = systems;
+        checkSystems = [ "x86_64-linux" ];
+        # Hydra is intentionally limited to the two Linux artifact systems;
+        # ordinary packages retain all flake-utils systems.
+        hydraSystems = [
+          "x86_64-linux"
+          "aarch64-linux"
+        ];
+        buildFor = system: perSystem.${system};
+      };
     in
-    outputs
+    ciOutputs
     // {
+      devShells = nixpkgs.lib.genAttrs systems (system: perSystem.${system}.devShells);
+
       # lib.game is exposed so other flakes (e.g. nixlab) can compose
       # against the same deployment definitions if they ever want to.
       lib.game = mkDeployment nixpkgs.lib;
-
-      # hydraJobs: this is what gcp-hydra (hydra.casazza.io) builds.
-      # Mirrors athena-operator's hydraJobs shape exactly.
-      hydraJobs = {
-        x86_64-linux = outputs.packages.x86_64-linux;
-        aarch64-linux = outputs.packages.aarch64-linux;
-      };
 
       formatter.x86_64-linux = nixpkgs.legacyPackages.x86_64-linux.nixfmt-rfc-style;
       formatter.aarch64-linux = nixpkgs.legacyPackages.aarch64-linux.nixfmt-rfc-style;
