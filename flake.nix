@@ -119,12 +119,9 @@
         inherit systems;
         packageSystems = systems;
         checkSystems = [ "x86_64-linux" ];
-        # Hydra is intentionally limited to the two Linux artifact systems;
-        # ordinary packages retain all flake-utils systems.
-        hydraSystems = [
-          "x86_64-linux"
-          "aarch64-linux"
-        ];
+        # Hydra's deployed machine pool is x86_64-linux; package systems
+        # remain multi-system for native consumers.
+        hydraSystems = [ "x86_64-linux" ];
         buildFor = system: perSystem.${system};
       };
     in
